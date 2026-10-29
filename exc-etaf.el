@@ -549,11 +549,17 @@ references stays as small as the window."
   "Return the model (ROW . COL) under the pointer of GESTURE in STATE.
 The pointer is where the gesture last saw it, in pixels; an event's own
 start is no use at the release, whose start is the press, taken before
-the grid was drawn again."
+the grid was drawn again.  The pointer counts from the text rows, and
+`posn-at-x-y' from the tab line and header line above them."
   (let* ((xy (plist-get gesture :position))
          (window (plist-get gesture :window))
          (position (and (consp xy) (window-live-p window)
-                        (posn-point (posn-at-x-y (car xy) (cdr xy) window))))
+                        (posn-point
+                         (posn-at-x-y (car xy)
+                                      (+ (cdr xy)
+                                         (window-tab-line-height window)
+                                         (window-header-line-height window))
+                                      window))))
          (runtime (exc-etaf--runtime
                    (exc-etaf--state-buffer state)))
          (ref (and (integerp position) runtime

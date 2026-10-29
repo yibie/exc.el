@@ -2236,6 +2236,30 @@ cell in the way makes such a formula #SPILL!."
       (should (equal (etaf-value (exc-etaf--state-anchor state))
                      '(0 . 0))))))
 
+;; A gesture's pointer counts from the text rows; a tab line or header
+;; line above them does not move it onto the row above.
+(ert-deftest exc-etaf-cell-at-gesture-below-a-tab-line ()
+  (exc-etaf-test--with-grid (8 5)
+    (set-window-buffer (selected-window) (current-buffer))
+    (let* ((window (selected-window))
+           (state exc-etaf--state)
+           (under (lambda (xy)
+                    (exc-etaf--cell-at-gesture
+                     state (list :position xy :window window))))
+           (xy (cl-loop for y below (window-body-height window t)
+                        thereis
+                        (cl-loop for x below (window-body-width window t)
+                                 when (equal (funcall under (cons x y)) '(3 . 2))
+                                 return (cons x y)))))
+      (should xy)
+      (setq-local tab-line-format "tabs")
+      (setq-local header-line-format "header")
+      (redisplay t)
+      (should (> (+ (window-tab-line-height window)
+                    (window-header-line-height window))
+                 0))
+      (should (equal (funcall under xy) '(3 . 2))))))
+
 ;; A drag-selection resting against a window edge goes on past it, the
 ;; window scrolling, as a spreadsheet's does.
 (ert-deftest exc-etaf-drag-selection-scrolls-at-the-window-edge ()
