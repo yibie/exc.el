@@ -665,7 +665,7 @@ sight between come back."
       (etaf-set-value (exc-etaf--state-anchor state) anchor))
     (setq exc--nav-row (car cursor)
           exc--nav-col (1+ (cdr cursor)))
-    (exc-etaf--sync-point state)))
+    (exc-etaf--after-drawing state (lambda () (exc-etaf--sync-point state)))))
 
 (defun exc-etaf-select-column (col)
   "Select every cell of model column COL."
@@ -2359,21 +2359,34 @@ Rows are laid out from ROW upwards only as far as the window reaches."
   "Show STATE's cursor and put point on it.
 Row heights are estimated before layout, so a row taller than estimated
 can still push the cursor below the window; scroll further until the
-painted cursor fits."
+painted cursor fits.  Inside a batch, such as a click's, the grid is
+drawn again only once it ends, and point waits for that."
   (etaf-batch (exc-etaf--scroll-to-cursor state))
-  (let ((lines (cdr (exc-etaf--viewport state)))
-        (top-ref (exc-etaf--state-top state))
-        (row (car (etaf-value (exc-etaf--state-cursor state))))
-        (guard 0)
-        position)
-    (while (and (setq position (exc-etaf--sync-point state))
-                (< guard 50)
-                (< (etaf-value top-ref) row)
-                (with-current-buffer (exc-etaf--state-buffer state)
-                  (> (line-number-at-pos position) lines)))
-      (setq guard (1+ guard))
-      (etaf-set-value top-ref (exc-etaf--step-row
-                               state (etaf-value top-ref) 1)))))
+  (exc-etaf--after-drawing
+   state
+   (lambda ()
+     (let ((lines (cdr (exc-etaf--viewport state)))
+           (top-ref (exc-etaf--state-top state))
+           (row (car (etaf-value (exc-etaf--state-cursor state))))
+           (guard 0)
+           position)
+       (while (and (setq position (exc-etaf--sync-point state))
+                   (< guard 50)
+                   (< (etaf-value top-ref) row)
+                   (> (line-number-at-pos position) lines))
+         (setq guard (1+ guard))
+         (etaf-set-value top-ref (exc-etaf--step-row
+                                  state (etaf-value top-ref) 1)))))))
+
+(defun exc-etaf--after-drawing (state function)
+  "Call FUNCTION in STATE's buffer once the grid shows the latest changes.
+That is at once outside a batch, and when the outermost one ends inside."
+  (let ((buffer (exc-etaf--state-buffer state)))
+    (etaf-next-tick
+     (lambda ()
+       (when (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (funcall function)))))))
 
 (defun exc-etaf-goto (row col &optional extend)
   "Move the cursor to model ROW and COL.

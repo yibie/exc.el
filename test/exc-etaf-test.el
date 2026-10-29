@@ -2260,6 +2260,31 @@ cell in the way makes such a formula #SPILL!."
                  0))
       (should (equal (funcall under xy) '(3 . 2))))))
 
+;; A click draws the grid again only once its handler returns; point
+;; then goes to the cell clicked, not where that cell's predecessor was.
+(ert-deftest exc-etaf-click-puts-point-on-the-cell ()
+  (exc-etaf-test--with-grid (8 5)
+    (set-window-buffer (selected-window) (current-buffer))
+    (let* ((window (selected-window))
+           (state exc-etaf--state))
+      (dolist (target '((3 . 2) (5 . 1) (2 . 4)))
+        (let* ((xy (cl-loop for y below (window-body-height window t)
+                            thereis
+                            (cl-loop for x below (window-body-width window t)
+                                     when (equal (exc-etaf--cell-at-gesture
+                                                  state (list :position (cons x y)
+                                                              :window window))
+                                                 target)
+                                     return (cons x y))))
+               (posn (posn-at-x-y (car xy) (cdr xy) window)))
+          (execute-kbd-macro (vector (list 'down-mouse-1 posn)
+                                     (list 'mouse-1 posn)))
+          (should (equal (exc-etaf--cursor) target))
+          (should (= (point)
+                     (etaf-host-ref-position (exc-etaf--runtime)
+                                             'exc-etaf-cursor)))
+          (should (= (window-point window) (point))))))))
+
 ;; A drag-selection resting against a window edge goes on past it, the
 ;; window scrolling, as a spreadsheet's does.
 (ert-deftest exc-etaf-drag-selection-scrolls-at-the-window-edge ()
